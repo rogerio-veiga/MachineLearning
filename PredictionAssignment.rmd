@@ -1,0 +1,171 @@
+---
+title: "Machine Learning Project - Prediction Assignment Writeup"
+author: "Rogério da Veiga"
+date: "15 de setembro de 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. 
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. We made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg).
+
+In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.  This report describes how the model was built, how you  cross validation was used, what the expected out of sample error is, and explains the choices done. Finally, the prediction model is used to predict 20 different test cases.
+
+# Summary
+
+Given a dataset collected and made available by Puc-Rio of sensors of movement in order to try to evaluate the quality of an exercise. The data were partitioned in two sets, subTraining and subTesting, the model was built on subTraining and applyed in subTesting. Verifying the accuracy, we observed that Random Forest method was better, which we applied to the Testing data set offered by the course in order to predict how well was the movement. 
+
+
+
+# Loading packages
+
+```{r}
+# install.packages("caret")
+# install.packages("randomForest")
+# install.packages("rpart")
+# install.packages("rpart.plot")
+# install.packages("e1071")
+
+
+require(caret)
+require(randomForest)
+require(rpart)
+require(rpart.plot)
+require(e1071)
+
+```
+
+# Reading and cleaning data
+
+``` {r}
+fileNameTraining <- "pml-training.csv"
+
+if (!file.exists(fileNameTraining)){
+      fileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+      download.file (url = fileURL, destfile = fileNameTraining)
+}  
+
+fileNameTesting <- "pml-testing.csv"
+
+if (!file.exists(fileNameTesting)){
+      fileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+      download.file (url = fileURL, destfile = fileNameTesting)
+}  
+
+pmlTraining <- read.csv(fileNameTraining, na.strings = c("NA","#DIV/0!", ""))
+pmlTesting <- read.csv(fileNameTesting, na.strings = c("NA","#DIV/0!", ""))
+
+
+
+```
+# Some exploratory analysis of the data.
+
+The Training and Testing Dataset has variables with no NA's and variables with the great majority of NA's values. Because of it, it was kept only the variables without NA's.
+
+
+``` {r}
+dim(pmlTraining)
+dim(pmlTesting)
+
+## Verifying the number o NAs in dataset.
+table(colSums(is.na(pmlTraining)))
+table(colSums(is.na(pmlTesting)))
+
+## Eliminating variables with NA's values
+pmlTraining <- pmlTraining[, colSums(is.na(pmlTraining)) == 0]
+pmlTesting <- pmlTesting[, colSums(is.na(pmlTesting))==0]
+
+## Eliminating variables that will not be used
+pmlTraining <- pmlTraining[, -c(1:7)]
+pmlTesting <- pmlTesting[, -c(1:7)]
+
+
+```
+
+# Cross-validation
+
+We partitioned the data set (pmlTrainign) in a training (75%) and test subset (25%). We'll choose the model based on the results in predicting the class of exercise made on test subset. Then, we will apply it in the original Test Set (pmlTesting variable). 
+
+``` {r}
+idxPartition <- createDataPartition(y=pmlTraining$classe, p=0.75, list=FALSE)
+subTraining <- pmlTraining[idxPartition, ] 
+subTesting <- pmlTraining[-idxPartition, ]
+
+
+```
+
+# Decision tree
+
+
+``` {r}
+dt <- rpart(classe ~ ., data=subTraining, method="class")
+
+# Predicting:
+prediction1 <- predict(dt, subTesting, type = "class")
+
+
+# Confusion Matrix
+cm1 <- confusionMatrix(prediction1,subTesting$classe)
+cm1
+```
+
+By the confusion matrix, we see that the Accuracy of the prediction is `r cm1$overall["Accuracy"] `. Let's try another method to see if we can have a better prediction on the movement executed by the subject.
+
+
+# Random Forest
+
+``` {r}
+rf <- randomForest(classe ~. , data=subTraining)
+prediction2 <- predict(rf, subTesting, type = "class")
+```
+
+Using confusion matrix to see how it goes.
+
+``` {r}
+cm2 <- confusionMatrix(prediction2, subTesting$classe)
+cm2
+```
+
+By the confusion matrix, we see that the Accuracy of the prediction is `r cm2$overall["Accuracy"] `. 
+
+# Results
+
+We've tested two methods for prediction, Decision Tree and Random Forest, which gave better accuracy when we applied in the subset for testing. 
+
+Now, we are going to apply this method to say how was the exercise made by people expressed in the test dataset (pmlTesting)
+
+
+``` {r}
+
+prediction_final <- predict(rf, pmlTesting, type = "class")
+prediction_final
+
+summary(prediction_final)
+
+par(mfrow=c(2,2))
+plot(pmlTraining$classe, main="Training Data Set")
+plot(subTraining$classe, main="Training Subset - 75% of Training Data")
+plot(subTesting$classe, main="Testing Subset - 25% of Training Data")
+plot(prediction_final, main="Prediction of 20 cases - Testing Data")
+
+
+
+
+```
+
+
+
+
+
+
+
+
